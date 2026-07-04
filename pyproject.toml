@@ -12,7 +12,7 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
+    # "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -21,7 +21,7 @@ classifiers = [
     "Natural Language :: Chinese (Simplified)",
     "Typing :: Typed",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "tzlocal>=5.3.1",
     "PySide6==6.8.2.1",
@@ -37,7 +37,20 @@ dependencies = [
     "loguru>=0.7.3",
     "nbformat>=5.10.4",
     "requests>=2.32.0",
-    "qrcode>=7.4.2"
+    "qrcode>=7.4.2",
+    "vnpy-algotrading",
+    "vnpy-ctabacktester",
+    "vnpy-ctastrategy",
+    "vnpy-datamanager",
+    "vnpy-datarecorder",
+    "vnpy-dolphindb",
+    "vnpy-paperaccount",
+    "vnpy-portfoliomanager",
+    "vnpy-portfoliostrategy",
+    "vnpy-riskmanager",
+    "vnpy-xt",
+    "vnpy-sqlite",
+    "vnpy-spreadtrading",
 ]
 keywords = ["quant", "quantitative", "investment", "trading", "algotrading"]
 
@@ -69,6 +82,25 @@ dev = [
 requires = ["hatchling>=1.27.0", "babel>=2.17.0"]
 build-backend = "hatchling.build"
 
+[tool.uv.workspace]
+members = ["plugins/*"]
+
+[tool.uv.sources]
+vnpy = { workspace = true }
+vnpy-algotrading = { workspace = true, editable = true }
+vnpy-ctabacktester = { workspace = true, editable = true }
+vnpy-ctastrategy = { workspace = true, editable = true }
+vnpy-datamanager = { workspace = true, editable = true }
+vnpy-datarecorder = { workspace = true, editable = true }
+vnpy-dolphindb = { workspace = true, editable = true }
+vnpy-paperaccount = { workspace = true, editable = true }
+vnpy-portfoliomanager = { workspace = true, editable = true }
+vnpy-portfoliostrategy = { workspace = true, editable = true }
+vnpy-riskmanager = { workspace = true, editable = true }
+vnpy-xt = { workspace = true, editable = true }
+vnpy-sqlite = { workspace = true, editable = true }
+vnpy-spreadtrading = { workspace = true, editable = true }
+
 [tool.hatch.version]
 path = "vnpy/__init__.py"
 pattern = "__version__ = ['\"](?P<version>[^'\"]+)['\"]"
@@ -87,7 +119,7 @@ path = "vnpy/trader/locale/build_hook.py"
 "vnpy/trader/locale/en/LC_MESSAGES/vnpy.mo" = "vnpy/trader/locale/en/LC_MESSAGES/vnpy.mo"
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 output-format = "full"
 
 [tool.ruff.lint]
@@ -101,7 +133,7 @@ select = [
 ignore = ["E501"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
