@@ -43,3 +43,6 @@
 [submodule "plugins/uvpy_tushare"]
 	path = plugins/uvpy_tushare
 	url = git@github.com:WeirdoArt/uvpy_tushare.git
+[submodule "plugins/uvpy_spreadtrading"]
+	path = plugins/uvpy_spreadtrading
+	url = git@github.com:WeirdoArt/uvpy_spreadtrading.git
