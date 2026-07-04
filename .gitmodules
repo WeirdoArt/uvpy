@@ -1,0 +1,45 @@
+[submodule "plugins/uvpy_xt"]
+	path = plugins/uvpy_xt
+	url = git@github.com:WeirdoArt/uvpy_xt.git
+[submodule "plugins/uvpy_sqlite"]
+	path = plugins/uvpy_sqlite
+	url = git@github.com:WeirdoArt/uvpy_sqlite.git
+[submodule "plugins/uvpy_ctastrategy"]
+	path = plugins/uvpy_ctastrategy
+	url = git@github.com:WeirdoArt/uvpy_ctastrategy.git
+[submodule "plugins/uvpy_portfoliostrategy"]
+	path = plugins/uvpy_portfoliostrategy
+	url = git@github.com:WeirdoArt/uvpy_portfoliostrategy.git
+[submodule "plugins/uvpy_ib"]
+	path = plugins/uvpy_ib
+	url = git@github.com:WeirdoArt/uvpy_ib.git
+[submodule "plugins/uvpy_ctabacktester"]
+	path = plugins/uvpy_ctabacktester
+	url = git@github.com:WeirdoArt/uvpy_ctabacktester.git
+[submodule "plugins/uvpy_riskmanager"]
+	path = plugins/uvpy_riskmanager
+	url = git@github.com:WeirdoArt/uvpy_riskmanager.git
+[submodule "plugins/uvpy_dolphindb"]
+	path = plugins/uvpy_dolphindb
+	url = git@github.com:WeirdoArt/uvpy_dolphindb.git
+[submodule "plugins/uvpy_tqsdk"]
+	path = plugins/uvpy_tqsdk
+	url = git@github.com:WeirdoArt/uvpy_tqsdk.git
+[submodule "plugins/uvpy_datarecorder"]
+	path = plugins/uvpy_datarecorder
+	url = git@github.com:WeirdoArt/uvpy_datarecorder.git
+[submodule "plugins/uvpy_algotrading"]
+	path = plugins/uvpy_algotrading
+	url = git@github.com:WeirdoArt/uvpy_algotrading.git
+[submodule "plugins/uvpy_paperaccount"]
+	path = plugins/uvpy_paperaccount
+	url = git@github.com:WeirdoArt/uvpy_paperaccount.git
+[submodule "plugins/uvpy_portfoliomanager"]
+	path = plugins/uvpy_portfoliomanager
+	url = git@github.com:WeirdoArt/uvpy_portfoliomanager.git
+[submodule "plugins/uvpy_datamanager"]
+	path = plugins/uvpy_datamanager
+	url = git@github.com:WeirdoArt/uvpy_datamanager.git
+[submodule "plugins/uvpy_tushare"]
+	path = plugins/uvpy_tushare
+	url = git@github.com:WeirdoArt/uvpy_tushare.git
