@@ -10,10 +10,14 @@ from io import BytesIO
 from typing import cast, Any
 from copy import copy
 from tzlocal import get_localzone_name
-from datetime import datetime
+from datetime import datetime, date, time as dt_time
 from importlib import metadata
 
 import qrcode
+
+import pyqtgraph as pg      # type: ignore
+
+pg.setConfigOptions(antialias=True)
 
 from .qt import QtCore, QtGui, QtWidgets, Qt
 from ..constant import Direction, Exchange, Offset, OrderType
@@ -699,6 +703,448 @@ class ConnectDialog(QtWidgets.QDialog):
 
         self.main_engine.connect(setting, self.gateway_name)
         self.accept()
+
+
+class TimeAxisItem(pg.AxisItem):
+    """Custom x-axis for trading time labels. Ticks are set dynamically by update_chart()."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setLabel(_("时间"), color="white")
+
+    def tickStrings(self, values: list, scale: float, spacing: float) -> list[str]:
+        return ["" for _ in values]
+    
+
+class HotMoneyWidget(QtWidgets.QWidget):
+    """
+    Hot sector money flow tracking panel.
+
+    Design:
+      - Starts empty; waits for sector event from engine.
+      - Calendar date picker lets user switch between days.
+      - Chart always shows one day's intraday progression (ordinal X).
+    """
+
+    signal: QtCore.Signal = QtCore.Signal(Event)
+
+    CHART_COLORS: list[QtGui.QColor] = []
+
+    def __init__(self, main_engine: MainEngine, event_engine: EventEngine) -> None:
+        """"""
+        super().__init__()
+
+        self.main_engine: MainEngine = main_engine
+        self.event_engine: EventEngine = event_engine
+        self._pending_load_date: date | None = None
+        self._selected_sector: str | None = None
+        self._chart_data: dict | None = None
+
+        self.init_ui()
+        self.register_event()
+
+    def register_event(self) -> None:
+        """"""
+        self.signal.connect(self.process_event)
+        # self.event_engine.register(EVENT_SECTOR_MONEY_FLOW, self.signal.emit)
+
+    def process_event(self, event: Event) -> None:
+        """"""
+        try:
+            raw: Any = event.data
+            if not raw:
+                dt_sel: date = self.date_picker.date().toPyDate()
+                self.status_label.setText(f"{dt_sel}  无数据")
+                return
+
+            # Handle both list (direct from gateway) and dict (from engine re-emit)
+            if isinstance(raw, list):
+                # Convert list[SectorMoneyFlowData] → compact dict
+                data: dict = {}
+                for d in raw:
+                    sec: str = d.sector_name
+                    if sec not in data:
+                        data[sec] = {
+                            "change_pct": d.change_pct,
+                            "ts": [],
+                            "vals": [],
+                            "leading_stock": d.leading_stock,
+                            "leading_stock_change": d.leading_stock_change,
+                        }
+                    data[sec]["ts"].append(d.datetime.timestamp())
+                    data[sec]["vals"].append(d.net_inflow_amount)
+            else:
+                data = raw
+
+            # 提取第一条数据的第一个时间戳作为参考
+            first_sec: str = next(iter(data.keys()))
+            sec_info: dict = data[first_sec]
+            first_ts: float = sec_info["ts"][0] if sec_info["ts"] else 0
+            viewed: date = self.date_picker.date().toPyDate()
+
+            if first_ts:
+                data_date: date = datetime.fromtimestamp(first_ts).date()
+                if data_date != viewed:
+                    return
+
+            self.update_chart(data)
+            self.update_table(data)
+
+            # Update status with count
+            points: int = len(data)
+            ts_count: int = max((len(v["ts"]) for v in data.values()), default=0)
+            if first_ts:
+                dt_str: str = datetime.fromtimestamp(first_ts).strftime("%H:%M")
+            else:
+                dt_str = "--:--"
+            self.status_label.setText(
+                f"{dt_str}  "
+                f"{points}板块 x {ts_count}时段"
+            )
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def update_chart(self, data: dict) -> None:
+        """
+        data: {sector_name: {change_pct, ts[], vals[], leading_stock, leading_stock_change}}
+        """
+        try:
+            if not data:
+                return
+
+            self._chart_data = data
+
+            # Collect all unique timestamps
+            all_ts: set[float] = set()
+            sector_last_y: dict[str, float] = {}
+            for sec_name, info in data.items():
+                ts_list: list[float] = info["ts"]
+                val_list: list[float] = info["vals"]
+                all_ts.update(ts_list)
+                if val_list:
+                    sector_last_y[sec_name] = val_list[-1]
+
+            if not sector_last_y:
+                return
+
+            sorted_ts: list[float] = sorted(all_ts)
+            n_pts: int = len(sorted_ts)
+
+            # Build X-index mapping: timestamp → ordinal
+            ts_to_idx: dict[float, int] = {ts: i for i, ts in enumerate(sorted_ts)}
+
+            # Top 20 for labels
+            top_sectors: set[str] = set()
+            sorted_by_abs: list[tuple[str, float]] = sorted(
+                sector_last_y.items(), key=lambda x: abs(x[1]), reverse=True
+            )[:20]
+            for sec_name, _ in sorted_by_abs:
+                top_sectors.add(sec_name)
+
+            # Clear old items
+            for curve in self.chart_curves:
+                self.chart.removeItem(curve)
+            self.chart_curves.clear()
+            for label in self.chart_labels:
+                self.chart.removeItem(label)
+            self.chart_labels.clear()
+
+            # Determine dim/highlight per sector
+            selected: str | None = self._selected_sector
+            has_selection: bool = selected is not None
+
+            for sec_name, info in data.items():
+                ts_list = info["ts"]
+                val_list = info["vals"]
+                if not ts_list:
+                    continue
+
+                # Build x_data, y_data using ordinal indices
+                x_data: list[float] = []
+                y_data: list[float] = []
+                for ts, val in zip(ts_list, val_list, strict=False):
+                    idx: int | None = ts_to_idx.get(ts)
+                    if idx is not None and math.isfinite(val):
+                        x_data.append(float(idx))
+                        y_data.append(val)
+
+                if not x_data:
+                    continue
+
+                is_selected: bool = sec_name == selected
+
+                # Pen alpha: selected → full, dimmed if another selected, otherwise normal
+                if is_selected:
+                    pen_alpha: int = 255
+                    pen_width: int = 3
+                elif has_selection:
+                    pen_alpha = 50
+                    pen_width = 1
+                else:
+                    pen_alpha = 200
+                    pen_width = 1
+
+                last_y: float = y_data[-1]
+                max_y: float = max(abs(y) for y in y_data) or 1.0
+
+                # Gradient bands: red (positive) / green (negative), intensity by |y|
+                bands: list[tuple[float, float, tuple[int, int, int], tuple[int, int, int]]] = [
+                    (0.0, 0.2, (180, 180, 180), (180, 180, 180)),
+                    (0.2, 0.4, (220, 120, 120), (120, 200, 120)),
+                    (0.4, 0.6, (240, 70, 70), (70, 220, 70)),
+                    (0.6, 0.8, (250, 30, 30), (30, 240, 30)),
+                    (0.8, 1.0, (255, 0, 0), (0, 255, 0)),
+                ]
+                for lo, hi, red_rgb, green_rgb in bands:
+                    lo_v: float = lo * max_y
+                    hi_v: float = hi * max_y
+                    red_mask: list[float | None] = [
+                        y if lo_v <= y < hi_v else None for y in y_data
+                    ]
+                    if any(v is not None for v in red_mask):
+                        c: pg.PlotDataItem = self.chart.plot(
+                            x_data, red_mask,
+                            pen=pg.mkPen((*red_rgb, pen_alpha), width=pen_width),
+                        )
+                        self.chart_curves.append(c)
+                    green_mask: list[float | None] = [
+                        y if -hi_v < y <= -lo_v else None for y in y_data
+                    ]
+                    if any(v is not None for v in green_mask):
+                        c: pg.PlotDataItem = self.chart.plot(
+                            x_data, green_mask,
+                            pen=pg.mkPen((*green_rgb, pen_alpha), width=pen_width),
+                        )
+                        self.chart_curves.append(c)
+
+                # Label at last point (top 20 only, always show if selected)
+                if sec_name in top_sectors or is_selected:
+                    last_x: float = x_data[-1]
+                    ratio: float = last_y / max_y if max_y else 0
+                    label_alpha: int = 255 if is_selected else 200
+                    if ratio > 0:
+                        label_color = QtGui.QColor(
+                            min(255, 180 + int(75 * ratio)),
+                            max(0, 180 - int(180 * ratio)),
+                            max(0, 180 - int(180 * ratio)),
+                            label_alpha,
+                        )
+                    else:
+                        label_color = QtGui.QColor(
+                            max(0, 180 - int(180 * abs(ratio))),
+                            min(255, 180 + int(75 * abs(ratio))),
+                            max(0, 180 - int(180 * abs(ratio))),
+                            label_alpha,
+                        )
+                    label: pg.TextItem = pg.TextItem(
+                        text=f"{sec_name} {last_y:.2f}",
+                        color=label_color,
+                        anchor=(0, 0.5),
+                    )
+                    label.setPos(last_x + 0.1, last_y)
+                    self.chart.addItem(label)
+                    self.chart_labels.append(label)
+
+            if n_pts and self.chart_curves:
+                n: int = n_pts
+                max_labels: int = min(8, n)
+                step: int = max(1, n // max_labels)
+                tick_list: list[tuple[float, str]] = []
+                for i in range(0, n, step):
+                    dt: datetime = datetime.fromtimestamp(sorted_ts[i])
+                    tick_list.append((float(i), dt.strftime("%H:%M")))
+                last_idx: int = n - 1
+                if not tick_list or tick_list[-1][0] != float(last_idx):
+                    dt_last: datetime = datetime.fromtimestamp(sorted_ts[last_idx])
+                    tick_list.append((float(last_idx), dt_last.strftime("%H:%M")))
+                self.chart.getAxis("bottom").setTicks([tick_list])
+
+                self.chart.autoRange()
+                vb = self.chart.getViewBox()
+                xmin, xmax = vb.viewRange()[0]
+                vb.setXRange(xmin, xmax * 1.08, padding=0)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def update_table(self, data: dict) -> None:
+        """"""
+        rows: list[tuple[str, dict]] = []
+        for sec_name, info in data.items():
+            vals: list[float] = info["vals"]
+            if not vals:
+                continue
+            last_val: float = vals[-1]
+            rows.append((sec_name, info, last_val))
+
+        rows.sort(key=lambda x: x[2], reverse=True)
+
+        self.sector_table.setRowCount(len(rows))
+        for row, (sec_name, info, last_val) in enumerate(rows):
+            change_pct: float = info["change_pct"]
+            leading_stock: str = info.get("leading_stock", "")
+            leading_stock_change: float = info.get("leading_stock_change", 0.0)
+
+            self.sector_table.setItem(row, 0, self._cell(sec_name))
+            inflow_text: str = _("流入") if last_val >= 0 else _("流出")
+            self.sector_table.setItem(row, 1, self._cell(inflow_text))
+            self.sector_table.setItem(row, 2, self._cell(f"{last_val / 1e8:.2f}"))
+            self.sector_table.setItem(row, 3, self._cell(f"{change_pct:.2f}%"))
+            self.sector_table.setItem(row, 4, self._cell(leading_stock))
+            self.sector_table.setItem(row, 5, self._cell(f"{leading_stock_change:.2f}%"))
+
+            item: QtWidgets.QTableWidgetItem = self.sector_table.item(row, 1)
+            if last_val >= 0:
+                item.setForeground(COLOR_INFLOW)
+            else:
+                item.setForeground(COLOR_OUTFLOW)
+
+    @staticmethod
+    def _cell(text: str) -> QtWidgets.QTableWidgetItem:
+        """"""
+        cell: QtWidgets.QTableWidgetItem = QtWidgets.QTableWidgetItem(text)
+        cell.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        return cell
+
+    def init_ui(self) -> None:
+        """"""
+        vbox: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout()
+        vbox.setContentsMargins(0, 0, 0, 0)
+
+        # -------- Top bar: calendar + status --------
+        top_bar: QtWidgets.QHBoxLayout = QtWidgets.QHBoxLayout()
+
+        self.date_picker: QtWidgets.QDateEdit = QtWidgets.QDateEdit()
+        self.date_picker.setCalendarPopup(True)
+        self.date_picker.setDate(datetime.now().date())
+        self.date_picker.dateChanged.connect(self._on_date_changed)
+
+        self.status_label: QtWidgets.QLabel = QtWidgets.QLabel(_("等待数据…"))
+        self.status_label.setStyleSheet("padding: 0 8px;")
+
+        top_bar.addWidget(QtWidgets.QLabel(_("日期:")))
+        top_bar.addWidget(self.date_picker)
+        top_bar.addStretch()
+        top_bar.addWidget(self.status_label)
+
+        vbox.addLayout(top_bar)
+
+        # -------- Chart --------
+        time_axis: TimeAxisItem = TimeAxisItem(orientation="bottom")
+
+        self.chart: pg.PlotWidget = pg.PlotWidget(axisItems={"bottom": time_axis})
+        self.chart.setBackground("black")
+        self.chart.setTitle(
+            _("板块资金净流入（亿元）"),
+            color="white",
+            size="10pt"
+        )
+        self.chart.showGrid(x=True, y=True, alpha=0.3)
+        self.chart.setLabel("left", _("净流入额"), color="white")
+        self.chart.setMouseEnabled(x=False, y=True)
+        self.chart.setXRange(-0.5, 0.5, padding=0)
+
+        self.chart_curves: list[pg.PlotDataItem] = []
+        self.chart_labels: list[pg.TextItem] = []
+        vbox.addWidget(self.chart, stretch=2)
+
+        # -------- Table --------
+        self.sector_table: QtWidgets.QTableWidget = QtWidgets.QTableWidget()
+        self.sector_table.setColumnCount(6)
+        self.sector_table.setHorizontalHeaderLabels([
+            _("板块"),
+            _("主力净流入"),
+            _("净流入额（亿）"),
+            _("涨幅"),
+            _("领涨股"),
+            _("领涨股涨幅"),
+        ])
+        self.sector_table.verticalHeader().setVisible(False)
+        self.sector_table.setEditTriggers(QtWidgets.QTableWidget.EditTrigger.NoEditTriggers)
+        self.sector_table.setAlternatingRowColors(True)
+        self.sector_table.setSortingEnabled(True)
+        self.sector_table.horizontalHeader().setStretchLastSection(True)
+        self.sector_table.horizontalHeader().setSectionResizeMode(
+            QtWidgets.QHeaderView.ResizeMode.Stretch
+        )
+        self.sector_table.cellClicked.connect(self._on_table_cell_clicked)
+
+        vbox.addWidget(self.sector_table, stretch=1)
+
+        self.setLayout(vbox)
+
+    # -------------------------------------------------------------------
+    # Table-click → chart highlight
+    # -------------------------------------------------------------------
+
+    def _on_table_cell_clicked(self, row: int, col: int) -> None:
+        """Click a table row → highlight that sector in the chart."""
+        item: QtWidgets.QTableWidgetItem | None = self.sector_table.item(row, 0)
+        if not item:
+            return
+        sec_name: str = item.text()
+        if self._selected_sector == sec_name:
+            self._selected_sector = None
+        else:
+            self._selected_sector = sec_name
+        if self._chart_data:
+            self.update_chart(self._chart_data)
+
+    # -------------------------------------------------------------------
+    # Calendar interaction
+    # -------------------------------------------------------------------
+
+    def _on_date_changed(self, qdate: QtCore.QDate) -> None:
+        """日历日期变更 → 异步加载"""
+        engine = self.main_engine.get_engine("sector_money_flow")
+        if not engine:
+            return
+
+        selected: date = qdate.toPyDate()
+        dt: datetime = datetime.combine(selected, dt_time(15, 0))
+
+        self._pending_load_date = selected
+        self.status_label.setText(_("加载中…"))
+        engine.load_date(dt)
+
+        QtCore.QTimer.singleShot(500, self._poll_load)
+
+    def _poll_load(self) -> None:
+        """轮询等待异步加载完成"""
+        try:
+            engine = self.main_engine.get_engine("sector_money_flow")
+            if not engine or self._pending_load_date is None:
+                return
+
+            data: dict = engine.get_data()
+            if not data:
+                QtCore.QTimer.singleShot(500, self._poll_load)
+                return
+
+            # Check if the loaded date matches
+            first_sec: str = next(iter(data.keys()))
+            first_ts: list[float] = data[first_sec]["ts"]
+            if first_ts:
+                data_date: date = datetime.fromtimestamp(first_ts[0]).date()
+                if data_date == self._pending_load_date:
+                    self._pending_load_date = None
+                    self.update_chart(data)
+                    self.update_table(data)
+
+                    pts: int = len(data)
+                    tsc: int = max((len(v["ts"]) for v in data.values()), default=0)
+                    self.status_label.setText(
+                        f"{pts}板块 x {tsc}时段"
+                    )
+                    return
+
+            QtCore.QTimer.singleShot(500, self._poll_load)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            self.status_label.setText(_("加载异常"))
+            self._pending_load_date = None
 
 
 class TradingWidget(QtWidgets.QWidget):

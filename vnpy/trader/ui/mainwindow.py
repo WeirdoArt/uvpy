@@ -24,6 +24,7 @@ from .widget import (
     ActiveOrderMonitor,
     ConnectDialog,
     ContractManager,
+    HotMoneyWidget,
     TradingWidget,
     AboutDialog,
     GlobalDialog,
@@ -53,7 +54,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.widgets: dict[str, QtWidgets.QWidget] = {}
         self.monitors: dict[str, BaseMonitor] = {}
+        self._docks: list[QtWidgets.QDockWidget] = []
 
+        self.trading_widget: TradingWidget
         self.init_ui()
 
     def init_ui(self) -> None:
@@ -62,13 +65,90 @@ class MainWindow(QtWidgets.QMainWindow):
         self.init_dock()
         self.init_toolbar()
         self.init_menu()
+        self.init_central()
         self.load_window_setting("custom")
 
-    def init_dock(self) -> None:
+    def init_central(self) -> None:
         """"""
+        # 中心总容器
+        central_widget = QtWidgets.QWidget()
+        self.setCentralWidget(central_widget)
+        main_h_layout = QtWidgets.QHBoxLayout(central_widget)
+        main_h_layout.setContentsMargins(4, 4, 4, 4)
+        main_h_layout.setSpacing(4)
+
+        # ====================== 1. 左侧垂直工具栏 ======================
+        self.toolbar.setOrientation(QtCore.Qt.Orientation.Vertical)
+        self.toolbar.setFixedWidth(40)
+        self.toolbar.setMovable(False)
+        self.toolbar.setIconSize(QtCore.QSize(32, 32))
+        main_h_layout.addWidget(self.toolbar)
+
+        # ====================== 外层横向分割器：左工具栏 | 中间区 | 右侧区 ======================
+        outer_splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
+        outer_splitter.setHandleWidth(4)
+        main_h_layout.addWidget(outer_splitter)
+
+        # ---------------------- 2. 中间整体区域（上绘图 + 下表格） ----------------------
+        mid_container = QtWidgets.QWidget()
+        mid_vlay = QtWidgets.QVBoxLayout(mid_container)
+        mid_vlay.setContentsMargins(0,0,0,0)
+        mid_vlay.setSpacing(4)
+
+        # 上部 pyqtgraph 图表
+        hot_money_widget: HotMoneyWidget = HotMoneyWidget(self.main_engine, self.event_engine)
+        mid_vlay.addWidget(hot_money_widget, stretch=3)
+
+        # 下部表格
+        # mid_table = QtWidgets.QTableWidget()
+        # mid_table.setRowCount(10)
+        # mid_table.setColumnCount(6)
+        # mid_vlay.addWidget(mid_table, stretch=2)
+
+        outer_splitter.addWidget(mid_container)
+
+        # ---------------------- 3. 右侧整体区域（右上交易+行情，右下Tab表格） ----------------------
+        right_container = QtWidgets.QWidget()
+        right_vlay = QtWidgets.QVBoxLayout(right_container)
+        right_vlay.setContentsMargins(0,0,0,0)
+        right_vlay.setSpacing(4)
+
+        # 右上横向分割：交易面板 | 行情表格
+        right_top_split = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
+        right_top_split.setHandleWidth(4)
+
+        # 交易面板
         self.trading_widget, trading_dock = self.create_dock(
             TradingWidget, _("交易"), QtCore.Qt.DockWidgetArea.LeftDockWidgetArea
         )
+        right_top_split.addWidget(self.trading_widget)
+
+        self.monitors[_("行情")].itemDoubleClicked.connect(self.trading_widget.update_with_cell)
+        self.monitors[_("持仓")].itemDoubleClicked.connect(self.trading_widget.update_with_cell)
+
+        # 行情表格
+        right_top_split.addWidget(self.monitors["行情"])
+
+        right_vlay.addWidget(right_top_split)
+
+        # 右下Tab标签页，每个标签都是表格
+        tab_widget = QtWidgets.QTabWidget()
+        tab_names = ["活动", "委托", "成交", "日志", "持仓", "资金"]
+        for name in tab_names:
+            tab_widget.addTab(self.monitors[name], name)
+        tab_widget.setMaximumHeight(500)
+        right_vlay.addWidget(tab_widget, stretch=1)
+
+        outer_splitter.addWidget(right_container)
+
+        # 外层三大块初始宽度比例：工具栏忽略，中间:右侧 = 5:4
+        outer_splitter.setStretchFactor(0, 5)
+        outer_splitter.setStretchFactor(1, 4)
+
+
+    def init_dock(self) -> None:
+        """"""
+        
         tick_widget, tick_dock = self.create_dock(
             TickMonitor, _("行情"), QtCore.Qt.DockWidgetArea.RightDockWidgetArea
         )
@@ -91,12 +171,9 @@ class MainWindow(QtWidgets.QMainWindow):
             PositionMonitor, _("持仓"), QtCore.Qt.DockWidgetArea.BottomDockWidgetArea
         )
 
-        self.tabifyDockWidget(active_dock, order_dock)
+        # self.tabifyDockWidget(active_dock, order_dock)
 
         self.save_window_setting("default")
-
-        tick_widget.itemDoubleClicked.connect(self.trading_widget.update_with_cell)
-        position_widget.itemDoubleClicked.connect(self.trading_widget.update_with_cell)
 
     def init_menu(self) -> None:
         """"""
@@ -204,7 +281,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if layout:
             layout.setSpacing(10)
 
-        self.addToolBar(QtCore.Qt.ToolBarArea.LeftToolBarArea, self.toolbar)
+        # self.addToolBar(QtCore.Qt.ToolBarArea.LeftToolBarArea, self.toolbar)
 
     def add_action(
         self,
@@ -243,7 +320,8 @@ class MainWindow(QtWidgets.QMainWindow):
         dock.setWidget(widget)
         dock.setObjectName(name)
         dock.setFeatures(dock.DockWidgetFeature.DockWidgetFloatable | dock.DockWidgetFeature.DockWidgetMovable)
-        self.addDockWidget(area, dock)
+        # self.addDockWidget(area, dock)
+        self._docks.append(dock)
         return widget, dock
 
     def connect_gateway(self, gateway_name: str) -> None:
