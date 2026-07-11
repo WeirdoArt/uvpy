@@ -46,3 +46,9 @@
 [submodule "plugins/uvpy_spreadtrading"]
 	path = plugins/uvpy_spreadtrading
 	url = git@github.com:WeirdoArt/uvpy_spreadtrading.git
+[submodule "plugins/uvpy_ctp"]
+	path = plugins/uvpy_ctp
+	url = git@github.com:WeirdoArt/uvpy_ctp.git
+[submodule "plugins/uvpy_ctptest"]
+	path = plugins/uvpy_ctptest
+	url = git@github.com:WeirdoArt/uvpy_ctptest.git
