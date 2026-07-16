@@ -39,5 +39,7 @@ _templates
 *.mo
 
 # Alpha
-lab/
+.lab/
 /.mypy_cache
+
+.build_note.md

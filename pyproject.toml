@@ -49,8 +49,17 @@ dependencies = [
     "vnpy-portfoliostrategy",
     "vnpy-riskmanager",
     "vnpy-xt",
+    "vnpy-ctp",
+    "vnpy-ctptest",
     "vnpy-sqlite",
     "vnpy-spreadtrading",
+    "polars>=1.42.1",
+    "alphalens>=0.4.0",
+    "wmi>=1.5.1",
+    "scikit-learn>=1.9.0",
+    "scipy>=1.17.1",
+    "torch>=2.12.1",
+    "pyarrow>=24.0.0",
 ]
 keywords = ["quant", "quantitative", "investment", "trading", "algotrading"]
 
@@ -69,6 +78,8 @@ dev = [
     "scipy-stubs>=1.16.3.0",
     "hatchling>=1.27.0",
     "babel>=2.17.0",
+    "meson>=1.7.0",
+    "ninja>=1.11.1",
 ]
 
 [project.urls]
@@ -98,6 +109,8 @@ vnpy-portfoliomanager = { workspace = true, editable = true }
 vnpy-portfoliostrategy = { workspace = true, editable = true }
 vnpy-riskmanager = { workspace = true, editable = true }
 vnpy-xt = { workspace = true, editable = true }
+vnpy-ctp = { workspace = true }
+vnpy-ctptest = { workspace = true }
 vnpy-sqlite = { workspace = true, editable = true }
 vnpy-spreadtrading = { workspace = true, editable = true }
 
@@ -154,3 +167,9 @@ module = [
     "qrcode"
 ]
 ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "meson>=1.11.1",
+    "ninja>=1.13.0",
+]
