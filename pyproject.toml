@@ -49,13 +49,13 @@ dependencies = [
     "vnpy-portfoliostrategy",
     "vnpy-riskmanager",
     "vnpy-xt",
-    "vnpy-ctp",
-    "vnpy-ctptest",
+    # "vnpy-ctp",        # Requires proprietary CTP API SDK
+    # "vnpy-ctptest",    # Requires proprietary CTP API SDK
     "vnpy-sqlite",
     "vnpy-spreadtrading",
     "polars>=1.42.1",
     "alphalens>=0.4.0",
-    "wmi>=1.5.1",
+    "wmi>=1.5.1; sys_platform == 'win32'",
     "scikit-learn>=1.9.0",
     "scipy>=1.17.1",
     "torch>=2.12.1",

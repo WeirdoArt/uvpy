@@ -16,12 +16,12 @@ from vnpy.trader.ui import MainWindow, create_qapp
 # from vnpy_da import DaGateway
 # from vnpy_rohon import RohonGateway
 # from vnpy_tts import TtsGateway
-from vnpy_xt import XtGateway
+# from vnpy_xt import XtGateway
 
 from vnpy_paperaccount import PaperAccountApp
 from vnpy_ctastrategy import CtaStrategyApp
 from vnpy_ctabacktester import CtaBacktesterApp
-from vnpy_spreadtrading import SpreadTradingApp
+# from vnpy_spreadtrading import SpreadTradingApp
 from vnpy_algotrading import AlgoTradingApp
 # from vnpy_optionmaster import OptionMasterApp
 from vnpy_portfoliostrategy import PortfolioStrategyApp
@@ -34,7 +34,6 @@ from vnpy_datarecorder import DataRecorderApp
 from vnpy_riskmanager import RiskManagerApp
 # from vnpy_webtrader import WebTraderApp
 from vnpy_portfoliomanager import PortfolioManagerApp
-from vnpy_xt import XtGateway
 
 
 def main():
@@ -60,7 +59,7 @@ def main():
     # main_engine.add_gateway(DaGateway)
     # main_engine.add_gateway(RohonGateway)
     # main_engine.add_gateway(TtsGateway)
-    main_engine.add_gateway(XtGateway)
+    # main_engine.add_gateway(XtGateway)  # Windows only
 
     main_engine.add_app(PaperAccountApp)
     main_engine.add_app(CtaStrategyApp)

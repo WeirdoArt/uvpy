@@ -127,13 +127,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.monitors[_("持仓")].itemDoubleClicked.connect(self.trading_widget.update_with_cell)
 
         # 行情表格
-        right_top_split.addWidget(self.monitors["行情"])
+        right_top_split.addWidget(self.monitors[_("行情")])
 
         right_vlay.addWidget(right_top_split)
 
         # 右下Tab标签页，每个标签都是表格
         tab_widget = QtWidgets.QTabWidget()
-        tab_names = ["活动", "委托", "成交", "日志", "持仓", "资金"]
+        tab_names = [_("活动"), _("委托"), _("成交"), _("日志"), _("持仓"), _("资金")]
         for name in tab_names:
             tab_widget.addTab(self.monitors[name], name)
         tab_widget.setMaximumHeight(500)
